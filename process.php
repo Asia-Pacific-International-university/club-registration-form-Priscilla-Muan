@@ -21,16 +21,33 @@ class RegistrationManager {
         // keep session in sync
         $_SESSION['registrations'] = $this->registrations;
     }
+
+    private function writeFile(): void {
+        if (!is_dir(dirname($this->dataFile))) {
+            mkdir(dirname($this->dataFile), 0777, true);
+        }
+        file_put_contents($this->dataFile, json_encode($this->registrations, JSON_PRETTY_PRINT));
+    }
     
     public function saveRegistration(array $registration) {
         $this->registrations[] = $registration;
         $_SESSION['registrations'] = $this->registrations;
-        
-        if (!is_dir(dirname($this->dataFile))) {
-            mkdir(dirname($this->dataFile), 0777, true);
-        }
-        
-        file_put_contents($this->dataFile, json_encode($this->registrations, JSON_PRETTY_PRINT));
+        $this->writeFile();
+    }
+
+    public function deleteByIndex(int $index): bool {
+        // $index expected to be zero-based position in the array
+        if (!isset($this->registrations[$index])) return false;
+        array_splice($this->registrations, $index, 1);
+        $_SESSION['registrations'] = $this->registrations;
+        $this->writeFile();
+        return true;
+    }
+
+    public function clearAll(): void {
+        $this->registrations = [];
+        $_SESSION['registrations'] = $this->registrations;
+        $this->writeFile();
     }
     
     public function all() : array {
@@ -78,6 +95,13 @@ function render_table_rows(array $results, array $clubLabels, string $query = ''
                 <td>' . htmlspecialchars($r['email']) . '</td>
                 <td>' . $clubDisplay . '</td>
                 <td>' . htmlspecialchars($r['date']) . '</td>
+                <td>
+                  <form method="post" style="display:inline;">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="index" value="' . $i . '">
+                    <button type="submit" style="background:#dc3545;color:#fff;border:none;padding:6px 10px;border-radius:4px;cursor:pointer;">Delete</button>
+                  </form>
+                </td>
               </tr>';
     }
 }
@@ -95,8 +119,12 @@ if (!isset($_SESSION['registrations'])) {
     $_SESSION['registrations'] = $manager->all();
 }
 
-$searchBox = '<div class="search-box"><input type="text" id="searchInput" placeholder="Search registrations..." onkeyup="searchRegistrations(this.value)"></div>';
+$searchBox = '<div class="search-box" style="margin:20px 0;">
+                <input type="text" id="searchInput" placeholder="Search registrations..." onkeyup="searchRegistrations(this.value)" 
+                style="width:99%;padding:10px;border:1px solid #ddd;border-radius:4px;">
+            </div>';
 
+// JS for AJAX search (unchanged)
 $searchScript = '<script>
 function searchRegistrations(query) {
     fetch("?search=" + encodeURIComponent(query))
@@ -109,8 +137,136 @@ function searchRegistrations(query) {
 }
 </script>';
 
-// handle form submission
+// handle form submission and delete/clear actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // action-based requests (delete or clear) are handled first
+    if (isset($_POST['action']) && $_POST['action'] === 'delete') {
+        $idx = (int) ($_POST['index'] ?? -1);
+        $deleted = false;
+        if ($idx >= 0) {
+            $deleted = $manager->deleteByIndex($idx);
+        }
+        $all = $manager->all();
+        $message = $deleted ? 'Registration deleted.' : 'Nothing deleted.';
+        // render list page with the message
+        echo '<!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>Registrations</title>
+            <style>
+                body{
+                    font-family:Arial;
+                    margin:20px;
+                    background:#f4f4f4
+                }
+                .container{
+                    max-width:900px;
+                    margin:0 auto;
+                    background:#fff;
+                    padding:20px;
+                    border-radius:8px;
+                    box-shadow:0 2px 10px rgba(0,0,0,0.1)
+                }
+                .msg{
+                    background:#fff4e5;
+                    border:1px solid #ffd8a8;
+                    color:#7a4b00;
+                    padding:12px;
+                    border-radius:4px;
+                    margin-bottom:16px
+                }
+                .back-button{
+                    display:inline-block;
+                    padding:10px 20px;
+                    background:#5c5cdc;
+                    color:#fff;
+                    text-decoration:none;
+                    border-radius:4px;
+                    margin-top:20px
+                }
+                .back-button:hover{
+                    background:#2d1083
+                }
+                table{
+                    width:100%;
+                    border-collapse:collapse;
+                    margin-top:12px
+                }
+                th,td{
+                    padding:10px;
+                    text-align:left;
+                    border-bottom:1px solid #ddd
+                }
+                th{
+                    background:#f5f5f5;
+                    font-weight:600
+                }
+                    tr:hover{
+                    background:#f9f9f9
+                }
+            </style>
+        ' . $searchScript . '
+        </head>
+        <body>
+            <div class="container"><div class="msg">' . htmlspecialchars($message) . '</div>';
+                echo $searchBox;
+                echo '<h2>All Registrations (' . count($all) . ')</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Club</th>
+                            <th>Registered At</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>';
+                render_table_rows($all, $clubLabels);
+                echo '</tbody>
+                </table>
+                    <form method="post" onsubmit="return confirm(\'Clear all registrations? This cannot be undone.\');" style="margin-top:12px;">
+                    <input type="hidden" name="action" value="clear">
+                    <button type="submit" style="background:#6c757d;color:#fff;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;">Clear All</button>
+                    </form>
+                    <a class="back-button" href="index.html">Back to form</a></div></body></html>';
+        exit;
+    }
+
+    if (isset($_POST['action']) && $_POST['action'] === 'clear') {
+        $manager->clearAll();
+        $all = $manager->all();
+        $message = 'All registrations cleared.';
+        echo '<!DOCTYPE html>
+        <html lang="en">
+        <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1"><title>Registrations</title>
+        <style>body{font-family:Arial;margin:20px;background:#f4f4f4}.container{max-width:900px;margin:0 auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1)}.msg{background:#fff4e5;border:1px solid #ffd8a8;color:#7a4b00;padding:12px;border-radius:4px;margin-bottom:16px}.back-button{display:inline-block;padding:10px 20px;background:#5c5cdc;color:#fff;text-decoration:none;border-radius:4px;margin-top:20px}.back-button:hover{background:#2d1083}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{padding:10px;text-align:left;border-bottom:1px solid #ddd}th{background:#f5f5f5;font-weight:600}tr:hover{background:#f9f9f9}</style>
+        ' . $searchScript . '
+        </head><body><div class="container"><div class="msg">' . htmlspecialchars($message) . '</div>';
+        echo $searchBox;
+        echo '<h2>All Registrations (' . count($all) . ')</h2>
+        <table>
+        <thead>
+        <tr>
+        <th>#</th>
+        <th>Name</th>
+        <th>Email</th>
+        <th>Club</th>
+        <th>Registered At</th>
+        <th>Actions</th>
+        </tr>
+        </thead>
+        <tbody>';
+        render_table_rows($all, $clubLabels);
+        echo '</tbody></table><a class="back-button" href="index.html">Back to form</a></div></body></html>';
+        exit;
+    }
+
     $errors = [];
 
     $name  = trim($_POST['name']  ?? '');
@@ -283,28 +439,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     echo $searchBox;
 
-    echo '<h2>All Registrations (' . count($all) . ')</h2>
-        <table>
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>Name</th>
-                    <th>Email</th>
-                    <th>Club</th>
-                    <th>Registered At</th>
-                </tr>
-            </thead>
-
-            <tbody>';
-        // render rows (handles empty result message)
-                render_table_rows($all, $clubLabels);
-                    echo 
-            '</tbody>
-        </table>
-            <a class="back-button" href="index.html">New Registration</a>
-        </div>
-    </body>
-    </html>';
+    echo '<h2>All Registrations (' . count($all) . ')</h2><table><thead><tr><th>#</th><th>Name</th><th>Email</th><th>Club</th><th>Registered At</th><th>Actions</th></tr></thead><tbody>';
+    // render rows (handles empty result message)
+    render_table_rows($all, $clubLabels);
+    echo '</tbody></table>
+          <form method="post" onsubmit="return confirm(\'Clear all registrations? This cannot be undone.\');" style="margin-top:12px;">
+            <input type="hidden" name="action" value="clear">
+            <button type="submit" style="background:#6c757d;color:#fff;border:none;padding:8px 12px;border-radius:4px;cursor:pointer;">Clear All</button>
+          </form>
+          <a class="back-button" href="index.html">New Registration</a></div></body></html>';
     exit;
 }
 
