@@ -1,0 +1,19 @@
+{
+  "name": "club-registration-form-priscilla-muan",
+  "version": "1.0.0",
+  "description": "A guided learning project to build a PHP web application for student club registration.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@prettier/plugin-php": "^0.24.0",
+    "prettier": "^3.6.2"
+  }
+}

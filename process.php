@@ -3,16 +3,19 @@
 
 session_start();
 
-class RegistrationManager {
+class RegistrationManager
+{
     private $dataFile;
     private $registrations;
-    
-    public function __construct() {
+
+    public function __construct()
+    {
         $this->dataFile = __DIR__ . '/data/registrations.json';
         $this->loadRegistrations();
     }
-    
-    private function loadRegistrations() {
+
+    private function loadRegistrations()
+    {
         if (file_exists($this->dataFile)) {
             $this->registrations = json_decode(file_get_contents($this->dataFile), true) ?? [];
         } else {
@@ -22,45 +25,53 @@ class RegistrationManager {
         $_SESSION['registrations'] = $this->registrations;
     }
 
-    private function writeFile(): void {
+    private function writeFile(): void
+    {
         if (!is_dir(dirname($this->dataFile))) {
             mkdir(dirname($this->dataFile), 0777, true);
         }
         file_put_contents($this->dataFile, json_encode($this->registrations, JSON_PRETTY_PRINT));
     }
-    
-    public function saveRegistration(array $registration) {
+
+    public function saveRegistration(array $registration)
+    {
         $this->registrations[] = $registration;
         $_SESSION['registrations'] = $this->registrations;
         $this->writeFile();
     }
 
-    public function deleteByIndex(int $index): bool {
+    public function deleteByIndex(int $index): bool
+    {
         // $index expected to be zero-based position in the array
-        if (!isset($this->registrations[$index])) return false;
+        if (!isset($this->registrations[$index]))
+            return false;
         array_splice($this->registrations, $index, 1);
         $_SESSION['registrations'] = $this->registrations;
         $this->writeFile();
         return true;
     }
 
-    public function clearAll(): void {
+    public function clearAll(): void
+    {
         $this->registrations = [];
         $_SESSION['registrations'] = $this->registrations;
         $this->writeFile();
     }
-    
-    public function all() : array {
+
+    public function all(): array
+    {
         return $this->registrations;
     }
-    
-    public function search(string $query) : array {
-        if (trim($query) === '') return $this->registrations;
+
+    public function search(string $query): array
+    {
+        if (trim($query) === '')
+            return $this->registrations;
         $q = strtolower($query);
-        return array_filter($this->registrations, function($reg) use ($q) {
+        return array_filter($this->registrations, function ($reg) use ($q) {
             return strpos(strtolower($reg['name']), $q) !== false ||
-                   strpos(strtolower($reg['email']), $q) !== false ||
-                   strpos(strtolower($reg['club']), $q) !== false;
+                strpos(strtolower($reg['email']), $q) !== false ||
+                strpos(strtolower($reg['club']), $q) !== false;
         });
     }
 }
@@ -70,18 +81,19 @@ $manager = new RegistrationManager();
 // club map (emoji + label) - values must match <option value="..."> in [index.html](http://_vscodecontentref_/0)
 $clubLabels = [
     'programming' => "&#128187; Programming Club",
-    'art'         => "&#x1F3A8; Art Club",
-    'sports'      => "&#x26BD; Sports Club",
-    'music'       => "&#127926; Music Club",
-    'drama'       => "&#127916; Drama Club",
+    'art' => "&#x1F3A8; Art Club",
+    'sports' => "&#x26BD; Sports Club",
+    'music' => "&#127926; Music Club",
+    'drama' => "&#127916; Drama Club",
 ];
 $allowedClubs = array_keys($clubLabels);
 
 // helper: render table rows or a single "no results" message row
-function render_table_rows(array $results, array $clubLabels, string $query = '') {
+function render_table_rows(array $results, array $clubLabels, string $query = '')
+{
     if (empty($results)) {
-        $msg = $query === '' 
-            ? 'No registrations yet.' 
+        $msg = $query === ''
+            ? 'No registrations yet.'
             : 'No registrations found for "' . htmlspecialchars($query, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '".';
         echo '<tr><td colspan="5" style="text-align:center;color:#666;padding:16px;">' . $msg . '</td></tr>';
         return;
@@ -108,7 +120,7 @@ function render_table_rows(array $results, array $clubLabels, string $query = ''
 
 // quick AJAX search response (returns table rows)
 if (isset($_GET['search'])) {
-    $q = trim((string)$_GET['search']);
+    $q = trim((string) $_GET['search']);
     $results = $manager->search($q);
     render_table_rows($results, $clubLabels, $q);
     exit;
@@ -211,8 +223,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </head>
         <body>
             <div class="container"><div class="msg">' . htmlspecialchars($message) . '</div>';
-                echo $searchBox;
-                echo '<h2>All Registrations (' . count($all) . ')</h2>
+        echo $searchBox;
+        echo '<h2>All Registrations (' . count($all) . ')</h2>
                 <table>
                     <thead>
                         <tr>
@@ -225,8 +237,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </tr>
                     </thead>
                     <tbody>';
-                render_table_rows($all, $clubLabels);
-                echo '</tbody>
+        render_table_rows($all, $clubLabels);
+        echo '</tbody>
                 </table>
                     <form method="post" onsubmit="return confirm(\'Clear all registrations? This cannot be undone.\');" style="margin-top:12px;">
                     <input type="hidden" name="action" value="clear">
@@ -243,35 +255,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         echo '<!DOCTYPE html>
         <html lang="en">
         <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width,initial-scale=1"><title>Registrations</title>
-        <style>body{font-family:Arial;margin:20px;background:#f4f4f4}.container{max-width:900px;margin:0 auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,0.1)}.msg{background:#fff4e5;border:1px solid #ffd8a8;color:#7a4b00;padding:12px;border-radius:4px;margin-bottom:16px}.back-button{display:inline-block;padding:10px 20px;background:#5c5cdc;color:#fff;text-decoration:none;border-radius:4px;margin-top:20px}.back-button:hover{background:#2d1083}table{width:100%;border-collapse:collapse;margin-top:12px}th,td{padding:10px;text-align:left;border-bottom:1px solid #ddd}th{background:#f5f5f5;font-weight:600}tr:hover{background:#f9f9f9}</style>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width,initial-scale=1">
+            <title>Registrations</title>
+            <style>
+                body{
+                    font-family:Arial;
+                    margin:20px;
+                    background:#f4f4f4
+                }
+                .container{
+                    max-width:900px;
+                    margin:0 auto;
+                    background:#fff;
+                    padding:20px;
+                    border-radius:8px;
+                    box-shadow:0 2px 10px rgba(0,0,0,0.1)
+                }
+                .msg{
+                    background:#fff4e5;
+                    border:1px solid #ffd8a8;
+                    color:#7a4b00;
+                    padding:12px;
+                    border-radius:4px;
+                    margin-bottom:16px
+                }
+                .back-button{
+                    display:inline-block;
+                    padding:10px 20px;
+                    background:#5c5cdc;
+                    color:#fff;
+                    text-decoration:none;
+                    border-radius:4px;margin-top:20px
+                }
+                .back-button:hover{
+                    background:#2d1083
+                }
+                table{
+                    width:100%;
+                    border-collapse:collapse;
+                    margin-top:12px
+                }
+                th,td{
+                    padding:10px;
+                    text-align:left;
+                    border-bottom:1px solid #ddd
+                }
+                th{
+                    background:#f5f5f5;
+                    font-weight:600
+                }
+                tr:hover{
+                    background:#f9f9f9
+                }
+            </style>
         ' . $searchScript . '
-        </head><body><div class="container"><div class="msg">' . htmlspecialchars($message) . '</div>';
-        echo $searchBox;
-        echo '<h2>All Registrations (' . count($all) . ')</h2>
-        <table>
-        <thead>
-        <tr>
-        <th>#</th>
-        <th>Name</th>
-        <th>Email</th>
-        <th>Club</th>
-        <th>Registered At</th>
-        <th>Actions</th>
-        </tr>
-        </thead>
-        <tbody>';
-        render_table_rows($all, $clubLabels);
-        echo '</tbody></table><a class="back-button" href="index.html">Back to form</a></div></body></html>';
+        </head>
+        <body>
+            <div class="container">
+                <div class="msg">' . htmlspecialchars($message) . '</div>';
+                    echo $searchBox;
+                    echo '<h2>All Registrations (' . count($all) . ')</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Club</th>
+                                <th>Registered At</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>';
+                            render_table_rows($all, $clubLabels);
+                            echo 
+                        '</tbody>
+                    </table>
+                        <a class="back-button" href="index.html">Back to form</a>
+            </div>
+        </body>
+        </html>';
         exit;
     }
 
     $errors = [];
 
-    $name  = trim($_POST['name']  ?? '');
+    $name = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
-    $club  = trim($_POST['club']  ?? '');
+    $club = trim($_POST['club'] ?? '');
 
     if ($name === '') {
         $errors[] = 'Name is required';
@@ -336,10 +408,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="container">
                 <h1>Registration Error</h1>
                     <div class="error"><ul>';
-                        foreach ($errors as $e) {
-                            echo '<li>' . htmlspecialchars($e) . '</li>';
+        foreach ($errors as $e) {
+            echo '<li>' . htmlspecialchars($e) . '</li>';
         }
-                            echo '</ul>
+        echo '</ul>
                     </div>
                         <a class="back-button" href="index.html">Back to Registration</a>
             </div>
@@ -350,10 +422,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // prepare registration and persist (session + file)
     $registration = [
-        'name'  => $name,
+        'name' => $name,
         'email' => $email,
-        'club'  => $club,
-        'date'  => date('Y-m-d H:i:s')
+        'club' => $club,
+        'date' => date('Y-m-d H:i:s')
     ];
     $manager->saveRegistration($registration);
 
@@ -453,5 +525,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // non-POST visitors: redirect back to the form
 header('Location: index.html');
-exit;               
+exit;
 ?>
